@@ -39,7 +39,7 @@
     min-height:   100svh;
     padding:      0 0 env(safe-area-inset-bottom, 24px);
     border-radius: 0;
-    overflow:     hidden;
+    overflow:     clip; /* clip no crea scroll-container, lo que permite position:sticky en hijos */
     font-size:    15px;
     line-height:  1.5;
 }
@@ -597,7 +597,7 @@
     font-family:   var(--font);
     font-size:     .92rem;
     font-weight:   400;
-    padding:       12px 14px 12px 42px;
+    padding:       12px 14px 12px 42px !important;
     outline:       none;
     transition:    border-color .18s, box-shadow .18s;
     -webkit-appearance: none;
@@ -613,19 +613,26 @@
 }
 
 .gd-login-toggle-pwd {
-    position:   absolute;
-    right:      12px;
-    background: none;
-    border:     none;
-    cursor:     pointer;
-    color:      #8892a4;
-    padding:    4px;
-    display:    flex;
-    transition: color .15s;
+    position:    absolute;
+    right:       10px;
+    background:  transparent !important;
+    border:      none !important;
+    box-shadow:  none !important;
+    outline:     none !important;
+    cursor:      pointer;
+    color:       #8892a4;
+    padding:     6px;
+    display:     flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition:  color .15s, background .15s;
     -webkit-tap-highlight-color: transparent;
 }
-.gd-login-toggle-pwd:hover { color: #f0f0f2; }
-.gd-login-toggle-pwd svg   { width: 17px; height: 17px; }
+.gd-login-toggle-pwd:hover  { color: #f0f0f2; background: rgba(255,255,255,.07) !important; }
+.gd-login-toggle-pwd:focus  { outline: none !important; box-shadow: none !important; }
+.gd-login-toggle-pwd:active { background: rgba(255,255,255,.12) !important; }
+.gd-login-toggle-pwd svg    { width: 17px; height: 17px; display: block; }
 
 /* Input de contraseña con padding para el ojo */
 #gd-pwd { padding-right: 44px; }
@@ -671,7 +678,7 @@
     background:    #EA529F !important;  /* !important previene override del tema */
     border:        none !important;
     border-radius: 10px;
-    color:         #fff;
+    color:         #fff !important;
     cursor:        pointer;
     font-family:   var(--font);
     font-size:     .92rem;
@@ -679,7 +686,7 @@
     padding:       13px 24px;
     letter-spacing:.3px;
     transition:    background .2s, box-shadow .2s, transform .1s;
-    box-shadow:    0 4px 16px rgba(234,82,159,.35);
+    box-shadow:    0 2px 6px rgba(234,82,159,.15);
     display:       flex;
     align-items:   center;
     justify-content: center;
@@ -691,7 +698,7 @@
 }
 .gd-login-submit:hover:not(:disabled) {
     background:  #d4428f !important;
-    box-shadow:  0 6px 20px rgba(234,82,159,.5);
+    box-shadow:  0 3px 10px rgba(234,82,159,.25);
 }
 .gd-login-submit:active:not(:disabled) { transform: scale(.98); }
 .gd-login-submit:disabled {
@@ -1109,27 +1116,27 @@
 
 /* ── Responsive – mobile ── */
 @media (max-width: 480px) {
-    .gd-header              { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; gap: 8px; }
+    .gd-header              { padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 16px; gap: 8px; }
     .gd-header .gd-logo     { height: 26px !important; max-width: 110px !important; }
     .gd-btn--icon           { width: 36px; height: 36px; min-width: 36px; }
     .gd-btn--icon svg       { width: 16px; height: 16px; }
 
-    .gd-tabs                { padding: 10px 14px 0; gap: 6px; }
+    .gd-tabs                { padding: 14px 14px; gap: 10px; }
     .gd-tab                 { font-size: .75rem; padding: 7px 13px; }
 
-    .gd-kpis                { padding: 10px 14px; gap: 8px; grid-template-columns: 1fr 1fr; }
+    .gd-kpis                { padding: 30px 20px; gap: 16px; grid-template-columns: 1fr 1fr; }
     .gd-kpi                 { padding: 12px 10px; border-radius: 14px; }
     .gd-kpi__value          { font-size: 1.05rem; }
     .gd-kpi__icon           { font-size: 1.2rem; margin-bottom: 4px; }
     .gd-kpi__label          { font-size: .62rem; }
     .gd-kpi__sub            { font-size: .67rem; }
 
-    .gd-charts-row          { padding: 0 14px 12px; }
+    .gd-charts-row          { padding: 0px 20px 14px 20px; }
     .gd-card                { border-radius: 14px; }
     .gd-chart-wrap          { height: 200px; padding: 10px 8px; }
     .gd-chart-wrap--md      { height: 170px; }
 
-    .gd-card:has(.gd-table) { margin: 0 14px 14px; border-radius: 14px; }
+    .gd-card:has(.gd-table) { margin: 14px 20px; border-radius: 14px; }
     .gd-card__header        { padding: 12px 14px 10px; }
     .gd-card__title         { font-size: .85rem; }
 

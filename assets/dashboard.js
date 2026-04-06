@@ -698,10 +698,17 @@
     /* ── Medir header y setear --header-h para sticky tabs ── */
     function updateHeaderHeight() {
         const h = document.querySelector( '.gd-header' );
-        if ( h ) app.style.setProperty( '--header-h', h.offsetHeight + 'px' );
+        if ( h ) app.style.setProperty( '--header-h', h.getBoundingClientRect().height + 'px' );
     }
     updateHeaderHeight();
     window.addEventListener( 'resize', updateHeaderHeight );
+
+    /* ResizeObserver: re-mide el header cada vez que cambia de tamaño
+       (cubre casos donde env(safe-area-inset-top) resuelve tarde en iOS) */
+    const headerEl = document.querySelector( '.gd-header' );
+    if ( headerEl && window.ResizeObserver ) {
+        new ResizeObserver( updateHeaderHeight ).observe( headerEl );
+    }
 
     /* ── Boot ── */
     applyTheme( currentTheme );
