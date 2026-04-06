@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#EA529F">
+    <title>Sin conexión — Gournet Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Poppins', -apple-system, sans-serif;
+            background:  #13141a;
+            color:       #f0f0f2;
+            min-height:  100svh;
+            display:     flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding:     24px;
+            text-align:  center;
+        }
+
+        .logo {
+            width:         72px;
+            height:        72px;
+            border-radius: 18px;
+            object-fit:    cover;
+            margin-bottom: 28px;
+            box-shadow:    0 8px 24px rgba(0,0,0,.4);
+        }
+
+        .icon {
+            font-size:     3.5rem;
+            margin-bottom: 16px;
+            display:       block;
+            animation:     pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: .5; }
+        }
+
+        h1 {
+            font-size:     1.5rem;
+            font-weight:   700;
+            margin-bottom: 10px;
+            letter-spacing: -.2px;
+        }
+
+        p {
+            font-size:     .875rem;
+            font-weight:   300;
+            color:         #8892a4;
+            line-height:   1.65;
+            max-width:     280px;
+            margin:        0 auto 32px;
+        }
+
+        .btn {
+            background:   #EA529F;
+            color:        #fff;
+            border:       none;
+            border-radius: 10px;
+            font-family:  inherit;
+            font-size:    .9rem;
+            font-weight:  600;
+            padding:      13px 36px;
+            cursor:       pointer;
+            box-shadow:   0 4px 18px rgba(234,82,159,.4);
+            transition:   background .2s, transform .1s;
+            letter-spacing: .3px;
+        }
+        .btn:hover  { background: #d4428f; }
+        .btn:active { transform: scale(.97); }
+
+        .status {
+            margin-top:  20px;
+            font-size:   .75rem;
+            color:       #4a5060;
+            font-weight: 300;
+        }
+        .status.checking { color: #FAC632; }
+        .status.online   { color: #4EB8BA; }
+    </style>
+</head>
+<body>
+    <img class="logo"
+         src="https://app.gour-net.cl/wp-content/uploads/2026/03/gour_net_logo.jpeg"
+         alt="Gournet"
+         onerror="this.style.display='none'">
+    <span class="icon">📡</span>
+    <h1>Sin conexión</h1>
+    <p>No tienes acceso a internet en este momento.<br>Verifica tu conexión e intenta de nuevo.</p>
+    <button class="btn" id="retry-btn">Reintentar</button>
+    <p class="status" id="status">Esperando conexión…</p>
+
+    <script>
+        const btn    = document.getElementById( 'retry-btn' );
+        const status = document.getElementById( 'status' );
+
+        /* Navega a la raíz del sitio evitando el historial de la página offline */
+        function goHome() {
+            window.location.replace( '/' );
+        }
+
+        /* Verifica conectividad haciendo un fetch real que el SW no intercepta */
+        function checkOnline() {
+            return fetch(
+                window.location.origin + '/?gd-ping=' + Date.now(),
+                { cache: 'no-store', mode: 'no-cors' }
+            ).then( () => true ).catch( () => false );
+        }
+
+        btn.addEventListener( 'click', () => {
+            status.textContent = 'Verificando…';
+            status.className   = 'status checking';
+            btn.disabled       = true;
+
+            checkOnline().then( online => {
+                if ( online ) {
+                    status.textContent = '¡Conectado! Redirigiendo…';
+                    status.className   = 'status online';
+                    setTimeout( goHome, 600 );
+                } else {
+                    status.textContent = 'Aún sin conexión. Intenta de nuevo.';
+                    status.className   = 'status';
+                    btn.disabled       = false;
+                }
+            } );
+        } );
+
+        /* Auto-detectar cuando vuelve la conexión */
+        window.addEventListener( 'online', () => {
+            status.textContent = '¡Conexión restaurada! Redirigiendo…';
+            status.className   = 'status online';
+            setTimeout( goHome, 800 );
+        } );
+    </script>
+</body>
+</html>
