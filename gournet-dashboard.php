@@ -378,6 +378,17 @@ function gournet_render_dashboard( $atts ) {
             const eyeShow   = document.getElementById( 'gd-eye-show' );
             const eyeHide   = document.getElementById( 'gd-eye-hide' );
 
+            /* ── Autocompletar último RUT usado ── */
+            ( function () {
+                try {
+                    const saved = localStorage.getItem( 'gournet_last_rut' );
+                    if ( saved ) {
+                        rutInput.value = saved;
+                        pwdInput.focus();
+                    }
+                } catch(e) {}
+            } )();
+
             /* ── Formatear RUT chileno mientras escribe ── */
             rutInput.addEventListener( 'input', function () {
                 let v = this.value.replace( /[^0-9kK]/g, '' ).toUpperCase();
@@ -460,6 +471,8 @@ function gournet_render_dashboard( $atts ) {
                 .then( r => r.json() )
                 .then( json => {
                     if ( json.success ) {
+                        /* Guardar RUT para autocompletar en próximo login */
+                        try { localStorage.setItem( 'gournet_last_rut', rutInput.value ); } catch(e) {}
                         /* Redirigir — cookie ya está seteada por WordPress */
                         btnText.hidden  = false;
                         btnText.textContent = '✓ Ingresando…';
