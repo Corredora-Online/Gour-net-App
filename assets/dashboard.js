@@ -7,6 +7,9 @@
     /* ── Bail si no estamos en el dashboard autenticado ── */
     if ( ! document.getElementById( 'gd-refresh' ) ) return;
 
+    /* ── Marcar <html> para que el CSS pueda resetear el tema de WordPress ── */
+    document.documentElement.classList.add( 'gd-page' );
+
     /* ── State ── */
     let allLocales    = [];
     let activeLocal   = null;   // LOCAL id string, or '__all__'
@@ -100,6 +103,7 @@
     function applyTheme( theme ) {
         currentTheme = theme;
         app.dataset.theme = theme;
+        document.documentElement.dataset.theme = theme; // sincroniza con <html> para CSS global
         localStorage.setItem( 'gd-theme', theme );
         const isDark   = theme === 'dark';
         const iconEl   = document.getElementById( 'gd-theme-icon' );

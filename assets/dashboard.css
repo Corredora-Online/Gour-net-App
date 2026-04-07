@@ -8,6 +8,52 @@
 .gournet-app *::before,
 .gournet-app *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Full-viewport takeover — resetea html/body y wrappers del tema WP ── */
+html.gd-page,
+html.gd-page body {
+    margin:     0 !important;
+    padding:    0 !important;
+    width:      100% !important;
+    min-height: 100% !important;
+    background: #13141a !important;
+}
+html.gd-page[data-theme="light"],
+html.gd-page[data-theme="light"] body {
+    background: #F9F8F7 !important;
+}
+
+/* Wrappers comunes de temas WordPress — transparentes para no tapar la app */
+html.gd-page #page,
+html.gd-page #main,
+html.gd-page #content,
+html.gd-page #primary,
+html.gd-page .site,
+html.gd-page .site-content,
+html.gd-page .site-inner,
+html.gd-page main,
+html.gd-page article,
+html.gd-page .hentry,
+html.gd-page .hfeed,
+html.gd-page .entry-content,
+html.gd-page .post-content,
+html.gd-page .wp-site-blocks,
+html.gd-page .is-layout-flow,
+html.gd-page .wp-block-group,
+html.gd-page .wp-block-post-content {
+    background: transparent !important;
+    padding:    0 !important;
+    margin:     0 !important;
+    max-width:  none !important;
+    width:      100% !important;
+    border:     none !important;
+    box-shadow: none !important;
+}
+
+.gournet-app {
+    width:      100% !important;
+    min-height: 100svh !important;
+}
+
 .gournet-app {
     /* Brand colors — gour-net.cl */
     --clr-accent:         #EA529F;   /* Magenta principal */
