@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.5
+ * Version:     1.0.6
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -293,6 +293,7 @@ function gournet_render_dashboard( $atts ) {
         $ajax_url    = esc_url( admin_url( 'admin-ajax.php' ) );
         ob_start();
         ?>
+        <script>document.documentElement.classList.add('gd-page');</script>
         <div id="gournet-app" class="gournet-app gournet-app--login" role="main">
             <div class="gd-login-wrap">
                 <div class="gd-login-card">
