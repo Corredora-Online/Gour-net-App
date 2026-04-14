@@ -146,6 +146,22 @@
         }
     } );
 
+    document.getElementById( 'gd-clear-cache-btn' ).addEventListener( 'click', () => {
+        closeDropdown();
+        if ( ! ( 'caches' in window ) ) {
+            window.location.reload();
+            return;
+        }
+        caches.keys()
+            .then( keys => Promise.all( keys.map( k => caches.delete( k ) ) ) )
+            .then( () => {
+                if ( navigator.serviceWorker && navigator.serviceWorker.controller ) {
+                    navigator.serviceWorker.controller.postMessage( { type: 'SKIP_WAITING' } );
+                }
+                window.location.reload();
+            } );
+    } );
+
     /* ── Colour palette — brand colors gour-net.cl ── */
     const PALETTE = [
         '#EA529F','#554CFA','#4EB8BA','#FAC632',

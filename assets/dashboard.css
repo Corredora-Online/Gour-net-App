@@ -209,7 +209,8 @@ html.gd-page .wp-block-post-content {
 #gd-login-spinner[hidden],
 #gd-login-btn-text[hidden],
 #gd-eye-show[hidden],
-#gd-eye-hide[hidden] { display: none !important; }
+#gd-eye-hide[hidden],
+#gd-rut-spinner[hidden] { display: none !important; }
 
 /* ── Loading / Error ── */
 .gd-loading {
@@ -656,6 +657,43 @@ html.gd-page .wp-block-post-content {
 .gd-login-input--error {
     border-color: #ef4444 !important;
     box-shadow:   0 0 0 3px rgba(239,68,68,.15) !important;
+}
+
+/* Campo contraseña bloqueado hasta verificación del servidor */
+.gd-login-input:disabled {
+    opacity:      0.42;
+    cursor:       not-allowed;
+    border-color: #2c2f3d !important;
+    box-shadow:   none !important;
+}
+.gournet-app[data-theme="light"] .gd-login-input:disabled {
+    border-color: #dde3ed !important;
+}
+.gd-login-toggle-pwd:disabled {
+    opacity:        0.35;
+    cursor:         not-allowed;
+    pointer-events: none;
+}
+
+/* Campo RUT mientras se verifica el servidor */
+.gd-login-input--checking {
+    border-color:  #554CFA !important;
+    box-shadow:    0 0 0 3px rgba(85,76,250,.18) !important;
+    padding-right: 40px;
+}
+
+/* Spinner de verificación dentro del campo RUT */
+.gd-rut-spinner {
+    position:         absolute;
+    right:            12px;
+    width:            15px;
+    height:           15px;
+    border:           2px solid rgba(85,76,250,.3);
+    border-top-color: #554CFA;
+    border-radius:    50%;
+    animation:        spin .7s linear infinite;
+    pointer-events:   none;
+    flex-shrink:      0;
 }
 
 .gd-login-toggle-pwd {
@@ -1146,6 +1184,27 @@ html.gd-page .wp-block-post-content {
 /* ── PWA install dropdown item color ── */
 .gd-dropdown__item--install { color: rgba(78,184,186,.9); }
 .gd-dropdown__item--install:hover { color: #4EB8BA; background: rgba(78,184,186,.08); }
+
+/* ── Footer ── */
+.gd-footer {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    gap:             6px;
+    padding:         14px 0 20px;
+    font-size:       .68rem;
+    color:           rgba(255,255,255,.22);
+    letter-spacing:  .3px;
+}
+.gournet-app[data-theme="light"] .gd-footer { color: rgba(0,0,0,.28); }
+.gd-footer__sep { opacity: .5; }
+.gd-footer__link {
+    color:           inherit;
+    text-decoration: none;
+    transition:      color .2s;
+}
+.gd-footer__link:hover { color: rgba(234,82,159,.7); }
+.gournet-app[data-theme="light"] .gd-footer__link:hover { color: #EA529F; }
 
 /* ── Responsive – tablet ── */
 @media (max-width: 768px) {

@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.7
+ * Version:     1.0.8
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -24,7 +24,9 @@ if ( class_exists( 'Gournet_Dashboard_Updater' ) ) {
 define( 'GOURNET_VERSION', get_file_data( __FILE__, [ 'Version' => 'Version' ] )['Version'] );
 define( 'GOURNET_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GOURNET_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'GOURNET_WEBHOOK_URL', 'https://atm.novelty8.com/webhook/b364359a-e56e-45b6-b288-e69f27456437' );
+define( 'GOURNET_WEBHOOK_URL',         'https://atm.novelty8.com/webhook/b364359a-e56e-45b6-b288-e69f27456437' );
+define( 'GOURNET_SERVER_CHECK_URL',   'https://atm.novelty8.com/webhook/b9b1ee39-2a7a-430d-9676-b739751c6751' );
+define( 'GOURNET_SERVER_CHECK_TOKEN', 'hPYwgXq8DARZ6IxM73b6qJbV' );
 define( 'GOURNET_APP_ICON', 'https://app.gour-net.cl/wp-content/uploads/2026/03/gour_net_logo.jpeg' );
 
 /* Ocultar la barra de administración para todos los usuarios */
@@ -38,11 +40,13 @@ function gournet_pwa_endpoints() {
 
     /* ── Manifest ── */
     if ( isset( $_GET['gd-manifest'] ) ) {
-        $manifest = [
+        $start_url = get_option( 'gournet_dashboard_url', home_url( '/' ) );
+        $manifest  = [
+            'id'               => home_url( '/' ),
             'name'             => 'Gournet Dashboard',
             'short_name'       => 'Gournet',
             'description'      => 'Dashboard de ventas en tiempo real',
-            'start_url'        => home_url( '/' ),
+            'start_url'        => $start_url,
             'scope'            => home_url( '/' ),
             'display'          => 'standalone',
             'background_color' => '#13141a',
@@ -51,6 +55,12 @@ function gournet_pwa_endpoints() {
             'lang'             => 'es-CL',
             'categories'       => [ 'business' ],
             'icons'            => [
+                [
+                    'src'     => GOURNET_APP_ICON,
+                    'sizes'   => '192x192',
+                    'type'    => 'image/jpeg',
+                    'purpose' => 'any',
+                ],
                 [
                     'src'     => GOURNET_APP_ICON,
                     'sizes'   => '512x512',
@@ -250,6 +260,53 @@ function gournet_ajax_login() {
 }
 
 /* -----------------------------------------------------------------------
+   AJAX handler – Verificación de conectividad con servidor externo
+----------------------------------------------------------------------- */
+add_action( 'wp_ajax_nopriv_gournet_verify_server', 'gournet_ajax_verify_server' );
+add_action( 'wp_ajax_gournet_verify_server',        'gournet_ajax_verify_server' );
+
+function gournet_ajax_verify_server() {
+
+    /* 1 · CSRF */
+    if ( ! check_ajax_referer( 'gournet_verify_nonce', 'nonce', false ) ) {
+        wp_send_json_error( [ 'message' => 'Solicitud no válida. Recarga la página.' ], 403 );
+    }
+
+    /* 2 · Rate limiting: máx 10 verificaciones / 5 min por IP */
+    $raw_ip   = isset( $_SERVER['HTTP_X_FORWARDED_FOR'] )
+                ? explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) )[0]
+                : ( isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown' );
+    $ip       = trim( $raw_ip );
+    $rate_key = 'gd_verify_' . md5( $ip );
+    $count    = (int) get_transient( $rate_key );
+    if ( $count >= 10 ) {
+        wp_send_json_error( [ 'message' => 'Demasiadas solicitudes. Intenta en unos minutos.' ], 429 );
+    }
+    set_transient( $rate_key, $count + 1, 5 * MINUTE_IN_SECONDS );
+
+    /* 3 · Llamada al servidor externo — URL y token nunca salen de PHP */
+    $response = wp_remote_post( GOURNET_SERVER_CHECK_URL, [
+        'timeout'   => 10,
+        'sslverify' => true,
+        'headers'   => [
+            'Authorization' => GOURNET_SERVER_CHECK_TOKEN,
+            'Content-Type'  => 'application/json',
+        ],
+        'body' => wp_json_encode( [ 'ping' => true ] ),
+    ] );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( [ 'message' => 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' ], 503 );
+    }
+
+    if ( (int) wp_remote_retrieve_response_code( $response ) === 200 ) {
+        wp_send_json_success( [ 'ok' => true ] );
+    }
+
+    wp_send_json_error( [ 'message' => 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' ], 503 );
+}
+
+/* -----------------------------------------------------------------------
    AJAX handler – proxy al webhook externo
 ----------------------------------------------------------------------- */
 add_action( 'wp_ajax_gournet_fetch_data',        'gournet_ajax_fetch' );
@@ -289,10 +346,17 @@ add_shortcode( 'gournet_dashboard', 'gournet_render_dashboard' );
 
 function gournet_render_dashboard( $atts ) {
 
+    /* Guardar la URL de esta página para usarla como start_url en el manifest */
+    $current_url = get_permalink();
+    if ( $current_url ) {
+        update_option( 'gournet_dashboard_url', $current_url, false );
+    }
+
     /* ── Verificación de autenticación ── */
     if ( ! is_user_logged_in() ) {
-        $login_nonce = wp_create_nonce( 'gournet_login_nonce' );
-        $ajax_url    = esc_url( admin_url( 'admin-ajax.php' ) );
+        $login_nonce  = wp_create_nonce( 'gournet_login_nonce' );
+        $verify_nonce = wp_create_nonce( 'gournet_verify_nonce' );
+        $ajax_url     = esc_url( admin_url( 'admin-ajax.php' ) );
         ob_start();
         ?>
         <script>document.documentElement.classList.add('gd-page');</script>
@@ -329,6 +393,7 @@ function gournet_render_dashboard( $atts ) {
                                     inputmode="text"
                                     maxlength="12"
                                     required>
+                                <span id="gd-rut-spinner" class="gd-rut-spinner" hidden aria-hidden="true"></span>
                             </div>
                         </div>
 
@@ -339,8 +404,8 @@ function gournet_render_dashboard( $atts ) {
                                 <input class="gd-login-input" type="password" id="gd-pwd" name="pwd"
                                     placeholder="••••••••"
                                     autocomplete="current-password"
-                                    required>
-                                <button type="button" class="gd-login-toggle-pwd" id="gd-toggle-pwd" aria-label="Mostrar contraseña" tabindex="-1">
+                                    required disabled>
+                                <button type="button" class="gd-login-toggle-pwd" id="gd-toggle-pwd" aria-label="Mostrar contraseña" tabindex="-1" disabled>
                                     <svg id="gd-eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                     <svg id="gd-eye-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                                 </button>
@@ -353,7 +418,7 @@ function gournet_render_dashboard( $atts ) {
                             <span id="gd-login-lock-msg"></span>
                         </div>
 
-                        <button class="gd-login-submit" type="submit" id="gd-login-submit">
+                        <button class="gd-login-submit" type="submit" id="gd-login-submit" disabled>
                             <span id="gd-login-btn-text">Ingresar</span>
                             <span id="gd-login-spinner" class="gd-login-spinner" hidden></span>
                         </button>
@@ -367,50 +432,26 @@ function gournet_render_dashboard( $atts ) {
         ( function () {
             'use strict';
 
-            const AJAX_URL  = '<?php echo $ajax_url; ?>';
-            const form      = document.getElementById( 'gd-login-form' );
-            const rutInput  = document.getElementById( 'gd-rut' );
-            const pwdInput  = document.getElementById( 'gd-pwd' );
-            const submitBtn = document.getElementById( 'gd-login-submit' );
-            const btnText   = document.getElementById( 'gd-login-btn-text' );
-            const spinner   = document.getElementById( 'gd-login-spinner' );
-            const errorBox  = document.getElementById( 'gd-login-error' );
-            const lockBox   = document.getElementById( 'gd-login-lock' );
-            const lockMsg   = document.getElementById( 'gd-login-lock-msg' );
-            const togglePwd = document.getElementById( 'gd-toggle-pwd' );
-            const eyeShow   = document.getElementById( 'gd-eye-show' );
-            const eyeHide   = document.getElementById( 'gd-eye-hide' );
+            const AJAX_URL     = '<?php echo $ajax_url; ?>';
+            const VERIFY_NONCE = '<?php echo esc_js( $verify_nonce ); ?>';
 
-            /* ── Autocompletar último RUT usado ── */
-            ( function () {
-                try {
-                    const saved = localStorage.getItem( 'gournet_last_rut' );
-                    if ( saved ) {
-                        rutInput.value = saved;
-                        pwdInput.focus();
-                    }
-                } catch(e) {}
-            } )();
+            const form       = document.getElementById( 'gd-login-form' );
+            const rutInput   = document.getElementById( 'gd-rut' );
+            const pwdInput   = document.getElementById( 'gd-pwd' );
+            const submitBtn  = document.getElementById( 'gd-login-submit' );
+            const btnText    = document.getElementById( 'gd-login-btn-text' );
+            const spinner    = document.getElementById( 'gd-login-spinner' );
+            const errorBox   = document.getElementById( 'gd-login-error' );
+            const lockBox    = document.getElementById( 'gd-login-lock' );
+            const lockMsg    = document.getElementById( 'gd-login-lock-msg' );
+            const togglePwd  = document.getElementById( 'gd-toggle-pwd' );
+            const eyeShow    = document.getElementById( 'gd-eye-show' );
+            const eyeHide    = document.getElementById( 'gd-eye-hide' );
+            const rutSpinner = document.getElementById( 'gd-rut-spinner' );
 
-            /* ── Formatear RUT chileno mientras escribe ── */
-            rutInput.addEventListener( 'input', function () {
-                let v = this.value.replace( /[^0-9kK]/g, '' ).toUpperCase();
-                if ( v.length > 1 ) {
-                    const dv   = v.slice( -1 );
-                    const body = v.slice( 0, -1 ).replace( /\B(?=(\d{3})+(?!\d))/g, '.' );
-                    v = body + '-' + dv;
-                }
-                this.value = v;
-            } );
-
-            /* ── Toggle mostrar/ocultar contraseña ── */
-            togglePwd.addEventListener( 'click', function () {
-                const show = pwdInput.type === 'password';
-                pwdInput.type = show ? 'text' : 'password';
-                eyeShow.hidden = show;
-                eyeHide.hidden = ! show;
-                this.setAttribute( 'aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña' );
-            } );
+            /* ── Estado de verificación del servidor ── */
+            let serverVerified = false;
+            let isVerifying    = false;
 
             /* ── Helpers UI ── */
             function setLoading( on ) {
@@ -424,14 +465,17 @@ function gournet_render_dashboard( $atts ) {
                 errorBox.hidden      = false;
                 lockBox.hidden       = true;
                 rutInput.classList.add( 'gd-login-input--error' );
-                pwdInput.classList.add( 'gd-login-input--error' );
+                /* Solo marcar contraseña si está habilitada */
+                if ( ! pwdInput.disabled ) {
+                    pwdInput.classList.add( 'gd-login-input--error' );
+                }
             }
 
             function showLock( msg ) {
-                lockMsg.textContent  = msg;
-                lockBox.hidden       = false;
-                errorBox.hidden      = true;
-                submitBtn.disabled   = true;
+                lockMsg.textContent = msg;
+                lockBox.hidden      = false;
+                errorBox.hidden     = true;
+                submitBtn.disabled  = true;
             }
 
             function clearErrors() {
@@ -440,6 +484,107 @@ function gournet_render_dashboard( $atts ) {
                 rutInput.classList.remove( 'gd-login-input--error' );
                 pwdInput.classList.remove( 'gd-login-input--error' );
             }
+
+            /* ── Bloquear / desbloquear contraseña ── */
+            function lockPassword() {
+                serverVerified     = false;
+                pwdInput.disabled  = true;
+                togglePwd.disabled = true;
+                submitBtn.disabled = true;
+                pwdInput.value     = '';
+            }
+
+            function unlockPassword() {
+                serverVerified     = true;
+                pwdInput.disabled  = false;
+                togglePwd.disabled = false;
+                submitBtn.disabled = false;
+            }
+
+            function setChecking( on ) {
+                isVerifying    = on;
+                rutSpinner.hidden = ! on;
+                rutInput.classList.toggle( 'gd-login-input--checking', on );
+            }
+
+            /* ── Verificar que el servidor externo está operativo ── */
+            function verifyServer() {
+                if ( isVerifying ) return;
+                clearErrors();
+                setChecking( true );
+
+                const params = new URLSearchParams();
+                params.set( 'action', 'gournet_verify_server' );
+                params.set( 'nonce',  VERIFY_NONCE );
+
+                fetch( AJAX_URL, {
+                    method:      'POST',
+                    credentials: 'same-origin',
+                    headers:     { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body:        params.toString(),
+                } )
+                .then( r => r.json() )
+                .then( json => {
+                    setChecking( false );
+                    if ( json.success ) {
+                        unlockPassword();
+                        pwdInput.focus();
+                    } else {
+                        lockPassword();
+                        showError( json.data?.message || 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' );
+                    }
+                } )
+                .catch( () => {
+                    setChecking( false );
+                    lockPassword();
+                    showError( 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' );
+                } );
+            }
+
+            /* ── Autocompletar último RUT usado ── */
+            ( function () {
+                try {
+                    const saved = localStorage.getItem( 'gournet_last_rut' );
+                    if ( saved ) {
+                        rutInput.value = saved;
+                        /* Verificar servidor automáticamente con RUT guardado */
+                        setTimeout( verifyServer, 0 );
+                    }
+                } catch(e) {}
+            } )();
+
+            /* ── Formatear RUT chileno mientras escribe ── */
+            rutInput.addEventListener( 'input', function () {
+                let v = this.value.replace( /[^0-9kK]/g, '' ).toUpperCase();
+                if ( v.length > 1 ) {
+                    const dv   = v.slice( -1 );
+                    const body = v.slice( 0, -1 ).replace( /\B(?=(\d{3})+(?!\d))/g, '.' );
+                    v = body + '-' + dv;
+                }
+                this.value = v;
+
+                /* Si el usuario edita el RUT después de verificar, bloquear de nuevo */
+                if ( serverVerified ) {
+                    lockPassword();
+                    clearErrors();
+                }
+            } );
+
+            /* ── Verificar servidor al salir del campo RUT ── */
+            rutInput.addEventListener( 'blur', function () {
+                if ( this.value.trim() && ! serverVerified && ! isVerifying ) {
+                    verifyServer();
+                }
+            } );
+
+            /* ── Toggle mostrar/ocultar contraseña ── */
+            togglePwd.addEventListener( 'click', function () {
+                const show = pwdInput.type === 'password';
+                pwdInput.type = show ? 'text' : 'password';
+                eyeShow.hidden = show;
+                eyeHide.hidden = ! show;
+                this.setAttribute( 'aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña' );
+            } );
 
             /* ── Sanitizar RUT para enviar (sin puntos ni guion) ── */
             function cleanRut( rut ) {
@@ -450,6 +595,12 @@ function gournet_render_dashboard( $atts ) {
             form.addEventListener( 'submit', function ( e ) {
                 e.preventDefault();
                 clearErrors();
+
+                /* Guardia: servidor debe estar verificado */
+                if ( ! serverVerified ) {
+                    showError( 'Verifica tu RUT antes de continuar.' );
+                    return;
+                }
 
                 const rut = cleanRut( rutInput.value );
                 const pwd = pwdInput.value;
@@ -477,9 +628,9 @@ function gournet_render_dashboard( $atts ) {
                         /* Guardar RUT para autocompletar en próximo login */
                         try { localStorage.setItem( 'gournet_last_rut', rutInput.value ); } catch(e) {}
                         /* Redirigir — cookie ya está seteada por WordPress */
-                        btnText.hidden  = false;
+                        btnText.hidden      = false;
                         btnText.textContent = '✓ Ingresando…';
-                        spinner.hidden  = true;
+                        spinner.hidden      = true;
                         window.location.href = json.data.redirect || window.location.href;
                         return;
                     }
@@ -571,6 +722,13 @@ function gournet_render_dashboard( $atts ) {
                         </button>
                         <div class="gd-dropdown__divider" id="gd-install-divider" hidden></div>
                         <div class="gd-dropdown__divider"></div>
+                        <button class="gd-dropdown__item" id="gd-clear-cache-btn" role="menuitem">
+                            <span class="gd-dropdown__item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+                            </span>
+                            <span>Liberar caché</span>
+                        </button>
+                        <div class="gd-dropdown__divider"></div>
                         <a class="gd-dropdown__item gd-dropdown__item--danger" href="<?php echo esc_url( $logout_url ); ?>" role="menuitem">
                             <span class="gd-dropdown__item-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -651,6 +809,13 @@ function gournet_render_dashboard( $atts ) {
             </section>
 
         </div><!-- /gd-content -->
+
+        <!-- ── Footer ── -->
+        <footer class="gd-footer">
+            <span>v<?php echo esc_html( GOURNET_VERSION ); ?></span>
+            <span class="gd-footer__sep">·</span>
+            <span>Desarrollado por <a class="gd-footer__link" href="https://novelty8.com" target="_blank" rel="noopener noreferrer">Novelty8</a></span>
+        </footer>
 
         <!-- ── Banner instalar PWA (primera vez) ── -->
         <div class="gd-install-banner" id="gd-install-banner" hidden role="complementary" aria-label="Instalar aplicación">
