@@ -183,10 +183,9 @@
                     websiteToken: 'o4bEKLeCa6LN4dqXYoV3mFRj',
                     baseUrl: 'https://helpdesk.novelty8.com'
                 });
-                // Abre el chat inmediatamente después de cargar
-                if ( window.$chatwoot ) {
-                    window.$chatwoot.toggle( 'open' );
-                }
+
+                // Abrir chat
+                window.$chatwoot.toggle( 'open' );
             };
             document.head.appendChild( script );
         } else {
