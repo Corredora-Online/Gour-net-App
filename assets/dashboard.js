@@ -162,6 +162,41 @@
             } );
     } );
 
+    /* ── Chat de soporte ── */
+    let chatwootLoaded = false;
+    document.getElementById( 'gd-support-chat-btn' ).addEventListener( 'click', () => {
+        closeDropdown();
+
+        // Cargar Chatwoot on-demand solo la primera vez
+        if ( ! chatwootLoaded ) {
+            chatwootLoaded = true;
+            window.chatwootSettings = {
+                "position": "right",
+                "type": "standard",
+                "launcherTitle": "Chat de soporte"
+            };
+            const script = document.createElement( 'script' );
+            script.src = 'https://helpdesk.novelty8.com/packs/js/sdk.js';
+            script.async = true;
+            script.onload = function() {
+                window.chatwootSDK.run({
+                    websiteToken: 'o4bEKLeCa6LN4dqXYoV3mFRj',
+                    baseUrl: 'https://helpdesk.novelty8.com'
+                });
+                // Abre el chat inmediatamente después de cargar
+                if ( window.$chatwoot ) {
+                    window.$chatwoot.toggle( 'open' );
+                }
+            };
+            document.head.appendChild( script );
+        } else {
+            // Si ya está cargado, solo toggle
+            if ( window.$chatwoot ) {
+                window.$chatwoot.toggle( 'open' );
+            }
+        }
+    } );
+
     /* ── Colour palette — brand colors gour-net.cl ── */
     const PALETTE = [
         '#EA529F','#554CFA','#4EB8BA','#FAC632',

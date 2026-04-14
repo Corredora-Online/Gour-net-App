@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.13
+ * Version:     1.0.14
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -846,6 +846,16 @@ function gournet_render_dashboard( $atts ) {
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
                             </span>
                             <span>Liberar caché</span>
+                        </button>
+                        <div class="gd-dropdown__divider"></div>
+                        <!-- Chat de soporte -->
+                        <button class="gd-dropdown__item" id="gd-support-chat-btn" role="menuitem">
+                            <span class="gd-dropdown__item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </span>
+                            <span>Chat de soporte</span>
                         </button>
                         <div class="gd-dropdown__divider"></div>
                         <a class="gd-dropdown__item gd-dropdown__item--danger" href="<?php echo esc_url( $logout_url ); ?>" role="menuitem">
