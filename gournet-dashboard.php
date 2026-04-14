@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.9
+ * Version:     1.0.12
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -25,7 +25,7 @@ define( 'GOURNET_VERSION', get_file_data( __FILE__, [ 'Version' => 'Version' ] )
 define( 'GOURNET_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GOURNET_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GOURNET_WEBHOOK_URL',         'https://atm.novelty8.com/webhook/b364359a-e56e-45b6-b288-e69f27456437' );
-define( 'GOURNET_SERVER_CHECK_URL',   'https://atm.novelty8.com/webhook/b3f579d4-c850-4f9c-b47c-f3bce882daa3' );
+define( 'GOURNET_SERVER_CHECK_URL',   'https://atm.novelty8.com/webhook/b9b1ee39-2a7a-430d-9676-b739751c6751' );
 define( 'GOURNET_SERVER_CHECK_TOKEN', 'hPYwgXq8DARZ6IxM73b6qJbV' );
 define( 'GOURNET_APP_ICON', 'https://app.gour-net.cl/wp-content/uploads/2026/03/gour_net_logo.jpeg' );
 
@@ -288,26 +288,48 @@ function gournet_ajax_verify_server() {
     $user_rut = isset( $_POST['user_rut'] ) ? sanitize_text_field( wp_unslash( $_POST['user_rut'] ) ) : '';
 
     /* 4 · Llamada al servidor externo — URL y token nunca salen de PHP */
-    $url      = add_query_arg( 'user_rut', rawurlencode( $user_rut ), GOURNET_SERVER_CHECK_URL );
-    $response = wp_remote_post( $url, [
+    $response = wp_remote_post( GOURNET_SERVER_CHECK_URL, [
         'timeout'   => 10,
         'sslverify' => true,
         'headers'   => [
             'Authorization' => GOURNET_SERVER_CHECK_TOKEN,
             'Content-Type'  => 'application/json',
         ],
-        'body' => wp_json_encode( [ 'ping' => true ] ),
+        'body' => wp_json_encode( [ 'user_rut' => $user_rut ] ),
     ] );
 
     if ( is_wp_error( $response ) ) {
         wp_send_json_error( [ 'message' => 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' ], 503 );
     }
 
-    if ( (int) wp_remote_retrieve_response_code( $response ) === 200 ) {
+    $code = (int) wp_remote_retrieve_response_code( $response );
+
+    if ( $code === 200 ) {
         wp_send_json_success( [ 'ok' => true ] );
     }
 
     wp_send_json_error( [ 'message' => 'No pudimos conectarnos con el servidor, intente de nuevo más tarde' ], 503 );
+}
+
+/* -----------------------------------------------------------------------
+   Helper – Formatear RUT con puntos y guión
+----------------------------------------------------------------------- */
+function gournet_formatear_rut( $rut_limpio ) {
+    // Eliminar caracteres no numéricos (excepto K)
+    $rut_limpio = preg_replace( '/[^0-9K]/i', '', $rut_limpio );
+
+    if ( strlen( $rut_limpio ) === 0 ) {
+        return '';
+    }
+
+    // Extraer DV (último carácter)
+    $dv = strtoupper( substr( $rut_limpio, -1 ) );
+    $numeros = substr( $rut_limpio, 0, -1 );
+
+    // Formatear con puntos (de derecha a izquierda cada 3 dígitos)
+    $numeros_formateado = preg_replace( '/\B(?=(\d{3})+(?!\d))/', '.', $numeros );
+
+    return $numeros_formateado . '-' . $dv;
 }
 
 /* -----------------------------------------------------------------------
@@ -319,7 +341,29 @@ add_action( 'wp_ajax_nopriv_gournet_fetch_data', 'gournet_ajax_fetch' );
 function gournet_ajax_fetch() {
     check_ajax_referer( 'gournet_fetch', 'nonce' );
 
-    $response = wp_remote_get( GOURNET_WEBHOOK_URL, [
+    /* Verificar que el usuario esté autenticado */
+    if ( ! is_user_logged_in() ) {
+        wp_send_json_error( [ 'message' => 'Usuario no autenticado' ], 401 );
+    }
+
+    /* Obtener el RUT del usuario autenticado */
+    $current_user = wp_get_current_user();
+    $user_rut = '';
+
+    if ( $current_user->ID && ! empty( $current_user->user_login ) ) {
+        /* El username está guardado sin puntos, sin guión, en mayúsculas */
+        $user_rut = gournet_formatear_rut( $current_user->user_login );
+    }
+
+    /* Si no hay RUT, retornar error */
+    if ( empty( $user_rut ) ) {
+        wp_send_json_error( [ 'message' => 'No se pudo obtener el RUT del usuario' ], 400 );
+    }
+
+    /* Construir URL con query param user_rut */
+    $url = add_query_arg( 'user_rut', rawurlencode( $user_rut ), GOURNET_WEBHOOK_URL );
+
+    $response = wp_remote_get( $url, [
         'timeout'   => 15,
         'sslverify' => true,
     ] );
@@ -520,7 +564,7 @@ function gournet_render_dashboard( $atts ) {
                 const params = new URLSearchParams();
                 params.set( 'action',    'gournet_verify_server' );
                 params.set( 'nonce',     VERIFY_NONCE );
-                params.set( 'user_rut',  cleanRut( rutInput.value ) );
+                params.set( 'user_rut',  formatearRUT( rutInput.value ) );
 
                 fetch( AJAX_URL, {
                     method:      'POST',
@@ -577,7 +621,19 @@ function gournet_render_dashboard( $atts ) {
 
             /* ── Verificar servidor al salir del campo RUT ── */
             rutInput.addEventListener( 'blur', function () {
-                if ( this.value.trim() && ! serverVerified && ! isVerifying ) {
+                const rutValue = this.value.trim();
+
+                if ( ! rutValue ) return;
+
+                /* Validar RUT chileno */
+                if ( ! validarRUT( rutValue ) ) {
+                    lockPassword();
+                    showError( 'RUT inválido. Verifica que sea correcto.' );
+                    return;
+                }
+
+                /* Si RUT es válido, verificar servidor */
+                if ( ! serverVerified && ! isVerifying ) {
                     verifyServer();
                 }
             } );
@@ -591,8 +647,65 @@ function gournet_render_dashboard( $atts ) {
                 this.setAttribute( 'aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña' );
             } );
 
-            /* ── Sanitizar RUT para enviar (sin puntos ni guion) ── */
-            function cleanRut( rut ) {
+            /* ── Calcular dígito verificador (módulo 11) ── */
+            function calcularDigitoVerificador( rutSinDV ) {
+                const multiplicadores = [ 2, 3, 4, 5, 6, 7 ];
+                let suma = 0;
+                const rutStr = rutSinDV.toString();
+
+                for ( let i = rutStr.length - 1, j = 0; i >= 0; i--, j++ ) {
+                    const digito = parseInt( rutStr[i] );
+                    const multiplicador = multiplicadores[ j % 6 ];
+                    suma += digito * multiplicador;
+                }
+
+                const resto = suma % 11;
+                const dv = 11 - resto;
+
+                if ( dv === 11 ) return '0';
+                if ( dv === 10 ) return 'K';
+                return dv.toString();
+            }
+
+            /* ── Validar RUT chileno ── */
+            function validarRUT( rut ) {
+                rut = rut.replace( /\s/g, '' ).toUpperCase();
+
+                if ( ! rut.includes( '-' ) ) {
+                    return false;
+                }
+
+                const [ rutNumeros, dvIngresado ] = rut.split( '-' );
+                const rutLimpio = rutNumeros.replace( /\./g, '' );
+
+                if ( ! /^\d+$/.test( rutLimpio ) || rutLimpio.length === 0 ) {
+                    return false;
+                }
+
+                const dvEsperado = calcularDigitoVerificador( rutLimpio );
+                return dvIngresado === dvEsperado;
+            }
+
+            /* ── Formatear RUT con puntos y guión (para enviar a API) ── */
+            function formatearRUT( rut ) {
+                rut = rut.replace( /\D/g, '' ).toUpperCase();
+
+                if ( rut.length === 0 ) return '';
+
+                let dv;
+                if ( rut.length <= 8 ) {
+                    dv = calcularDigitoVerificador( rut );
+                } else {
+                    dv = rut.charAt( rut.length - 1 );
+                    rut = rut.substring( 0, rut.length - 1 );
+                }
+
+                const rutFormato = rut.replace( /\B(?=(\d{3})+(?!\d))/g, '.' );
+                return `${rutFormato}-${dv}`;
+            }
+
+            /* ── Obtener RUT sin formato (solo números y letra DV) ── */
+            function limpiarRUT( rut ) {
                 return rut.replace( /[.\-]/g, '' ).trim();
             }
 
@@ -607,10 +720,11 @@ function gournet_render_dashboard( $atts ) {
                     return;
                 }
 
-                const rut = cleanRut( rutInput.value );
+                const rutFormateado = formatearRUT( rutInput.value );
+                const rutLimpio = limpiarRUT( rutFormateado ).toUpperCase();
                 const pwd = pwdInput.value;
 
-                if ( ! rut || ! pwd ) {
+                if ( ! rutFormateado || ! pwd ) {
                     showError( 'Completa todos los campos.' );
                     return;
                 }
@@ -618,8 +732,8 @@ function gournet_render_dashboard( $atts ) {
                 setLoading( true );
 
                 const body = new URLSearchParams( new FormData( form ) );
-                /* Reemplaza el log con el RUT sin puntos */
-                body.set( 'log', rut );
+                /* Envía el RUT limpio (sin puntos, sin guión, en mayúsculas) como se guarda en BD */
+                body.set( 'log', rutLimpio );
 
                 fetch( AJAX_URL, {
                     method:      'POST',
