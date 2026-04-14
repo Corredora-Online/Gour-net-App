@@ -306,6 +306,7 @@ html.gd-page .wp-block-post-content {
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap:                   14px;
     padding:               18px 24px;
+    margin-top:            112px;  /* Espacio para header (68px) + tabs (~44px) sticky */
 }
 
 .gd-kpi {
