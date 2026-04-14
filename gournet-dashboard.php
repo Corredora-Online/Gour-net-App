@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.6
+ * Version:     1.0.7
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -21,7 +21,7 @@ if ( class_exists( 'Gournet_Dashboard_Updater' ) ) {
     $gournet_updater->initialize();
 }
 
-define( 'GOURNET_VERSION', '1.0.1' );
+define( 'GOURNET_VERSION', get_file_data( __FILE__, [ 'Version' => 'Version' ] )['Version'] );
 define( 'GOURNET_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GOURNET_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GOURNET_WEBHOOK_URL', 'https://atm.novelty8.com/webhook/b364359a-e56e-45b6-b288-e69f27456437' );
@@ -71,7 +71,9 @@ function gournet_pwa_endpoints() {
         header( 'Service-Worker-Allowed: /' );
         header( 'Cache-Control: no-cache, no-store, must-revalidate' );
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-        echo file_get_contents( GOURNET_PLUGIN_DIR . 'assets/sw.js' );
+        $sw_content = file_get_contents( GOURNET_PLUGIN_DIR . 'assets/sw.js' );
+        $sw_content = str_replace( '___GOURNET_VERSION___', GOURNET_VERSION, $sw_content );
+        echo $sw_content;
         exit;
     }
 

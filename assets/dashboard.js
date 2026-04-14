@@ -594,8 +594,18 @@
 
         /* ── Registrar Service Worker ── */
         if ( 'serviceWorker' in navigator ) {
+            const hadController = !! navigator.serviceWorker.controller;
+
             navigator.serviceWorker.register( window.location.origin + '/?gd-sw=1', { scope: '/' } )
                 .catch( () => {} );
+
+            /* Recargar automáticamente cuando el SW nuevo toma control.
+               hadController evita recarga espuria en la primera instalación. */
+            navigator.serviceWorker.addEventListener( 'controllerchange', () => {
+                if ( hadController ) {
+                    window.location.reload();
+                }
+            } );
         }
 
         /* Si ya está instalado, no mostrar nada */

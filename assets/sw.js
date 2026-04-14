@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE       = 'gournet-v2';
+const CACHE       = 'gournet-___GOURNET_VERSION___';
 const OFFLINE_URL = self.location.origin + '/?gd-offline=1';
 
 /* ── Install: pre-cache offline page ── */
