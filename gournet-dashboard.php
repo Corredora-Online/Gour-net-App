@@ -3,7 +3,7 @@
  * Plugin Name: Gournet Dashboard
  * Plugin URI:  https://novelty8.com
  * Description: Dashboard de ventas en tiempo real para locales Gournet. Usa el shortcode [gournet_dashboard] para embeber el panel.
- * Version:     1.0.8
+ * Version:     1.0.9
  * Author:      Novelty8
  * License:     GPL-2.0+
  * Text Domain: gournet-dashboard
@@ -25,7 +25,7 @@ define( 'GOURNET_VERSION', get_file_data( __FILE__, [ 'Version' => 'Version' ] )
 define( 'GOURNET_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GOURNET_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GOURNET_WEBHOOK_URL',         'https://atm.novelty8.com/webhook/b364359a-e56e-45b6-b288-e69f27456437' );
-define( 'GOURNET_SERVER_CHECK_URL',   'https://atm.novelty8.com/webhook/b9b1ee39-2a7a-430d-9676-b739751c6751' );
+define( 'GOURNET_SERVER_CHECK_URL',   'https://atm.novelty8.com/webhook/b3f579d4-c850-4f9c-b47c-f3bce882daa3' );
 define( 'GOURNET_SERVER_CHECK_TOKEN', 'hPYwgXq8DARZ6IxM73b6qJbV' );
 define( 'GOURNET_APP_ICON', 'https://app.gour-net.cl/wp-content/uploads/2026/03/gour_net_logo.jpeg' );
 
@@ -284,8 +284,12 @@ function gournet_ajax_verify_server() {
     }
     set_transient( $rate_key, $count + 1, 5 * MINUTE_IN_SECONDS );
 
-    /* 3 · Llamada al servidor externo — URL y token nunca salen de PHP */
-    $response = wp_remote_post( GOURNET_SERVER_CHECK_URL, [
+    /* 3 · Recibir y sanear el RUT enviado por el frontend */
+    $user_rut = isset( $_POST['user_rut'] ) ? sanitize_text_field( wp_unslash( $_POST['user_rut'] ) ) : '';
+
+    /* 4 · Llamada al servidor externo — URL y token nunca salen de PHP */
+    $url      = add_query_arg( 'user_rut', rawurlencode( $user_rut ), GOURNET_SERVER_CHECK_URL );
+    $response = wp_remote_post( $url, [
         'timeout'   => 10,
         'sslverify' => true,
         'headers'   => [
@@ -514,8 +518,9 @@ function gournet_render_dashboard( $atts ) {
                 setChecking( true );
 
                 const params = new URLSearchParams();
-                params.set( 'action', 'gournet_verify_server' );
-                params.set( 'nonce',  VERIFY_NONCE );
+                params.set( 'action',    'gournet_verify_server' );
+                params.set( 'nonce',     VERIFY_NONCE );
+                params.set( 'user_rut',  cleanRut( rutInput.value ) );
 
                 fetch( AJAX_URL, {
                     method:      'POST',
